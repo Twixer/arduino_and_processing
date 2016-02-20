@@ -12,25 +12,30 @@
 // and small change to OneWire library, see: http://arduino.cc/forum/index.php/topic,91491.msg687523.html#msg687523
 //----------------------------------------------------------------------------------------------------------------------
 
+#define TEST true             // TEST : print the output to the serial and disable RF transmission
+
+#include <JeeLib.h> // https://github.com/jcw/jeelib
 #include <OneWire.h> // http://www.pjrc.com/teensy/arduino_libraries/OneWire.zip
 #include <DallasTemperature.h> // http://download.milesburton.com/Arduino/MaximTemperature/DallasTemperature_LATEST.zip
 
-// ISR(WDT_vect) { Sleepy::watchdogEvent(); } // interrupt handler for JeeLabs Sleepy power saving
 
-#define DEBUG        // comment this line
+#if TEST == false
+  ISR(WDT_vect) { Sleepy::watchdogEvent(); } // interrupt handler for JeeLabs Sleepy power saving
+#endif
+
 #define myNodeID 4        // RF12 node ID in the range 1-30
 #define network 210       // RF12 Network group
 #define freq RF12_433MHZ  // Frequency of RFM12B module
 
-// #define USE_ACK           // Enable ACKs, comment out to disable
-// #define RETRY_PERIOD 5    // How soon to retry (in seconds) if ACK didn't come in
-// #define RETRY_LIMIT 5     // Maximum number of times to retry
-// #define ACK_TIME 10       // Number of milliseconds to wait for an ack
+#define USE_ACK           // Enable ACKs, comment out to disable
+#define RETRY_PERIOD 5    // How soon to retry (in seconds) if ACK didn't come in
+#define RETRY_LIMIT 5     // Maximum number of times to retry
+#define ACK_TIME 10       // Number of milliseconds to wait for an ack
 
 #define ONE_WIRE_BUS 10   // DS18B20 Temperature sensor is connected on D10/ATtiny pin 13
 #define ONE_WIRE_POWER 9  // DS18B20 Power pin is connected on D9/ATtiny pin 12
 
-#ifdef DEBUG
+#if TEST == true
   #include <SoftSerial.h>
   //#include <SoftwareSerial.h>
   #include <TinyPinChange.h>
@@ -57,6 +62,7 @@ DallasTemperature sensors(&oneWire); // Pass our oneWire reference to Dallas Tem
 
  Payload tinytx;
 
+#if TEST == false
 // Wait a few milliseconds for proper ACK
  #ifdef USE_ACK
   static byte waitForAck() {
@@ -69,36 +75,36 @@ DallasTemperature sensors(&oneWire); // Pass our oneWire reference to Dallas Tem
    return 0;
   }
  #endif
-
+#endif
 //--------------------------------------------------------------------------------------------------
 // Send payload data via RF
 //-------------------------------------------------------------------------------------------------
- // static void rfwrite(){
- //  #ifdef USE_ACK
- //   for (byte i = 0; i <= RETRY_LIMIT; ++i) {  // tx and wait for ack up to RETRY_LIMIT times
- //     rf12_sleep(-1);              // Wake up RF module
- //      while (!rf12_canSend())
- //      rf12_recvDone();
- //      rf12_sendStart(RF12_HDR_ACK, &tinytx, sizeof tinytx); 
- //      rf12_sendWait(2);           // Wait for RF to finish sending while in standby mode
- //      byte acked = waitForAck();  // Wait for ACK
- //      rf12_sleep(0);              // Put RF module to sleep
- //      if (acked) { return; }      // Return if ACK received
+#if TEST == false
+static void rfwrite(){
+  #ifdef USE_ACK
+   for (byte i = 0; i <= RETRY_LIMIT; ++i) {  // tx and wait for ack up to RETRY_LIMIT times
+     rf12_sleep(-1);              // Wake up RF module
+      while (!rf12_canSend())
+      rf12_recvDone();
+      rf12_sendStart(RF12_HDR_ACK, &tinytx, sizeof tinytx); 
+      rf12_sendWait(2);           // Wait for RF to finish sending while in standby mode
+      byte acked = waitForAck();  // Wait for ACK
+      rf12_sleep(0);              // Put RF module to sleep
+      if (acked) { return; }      // Return if ACK received
   
- //   Sleepy::loseSomeTime(RETRY_PERIOD * 1000);     // If no ack received wait and try again
- //   }
- //  #else
- //     rf12_sleep(-1);              // Wake up RF module
- //     while (!rf12_canSend())
- //     rf12_recvDone();
- //     rf12_sendStart(0, &tinytx, sizeof tinytx); 
- //     rf12_sendWait(2);           // Wait for RF to finish sending while in standby mode
- //     rf12_sleep(0);              // Put RF module to sleep
- //     return;
- //  #endif
- // }
-
-
+   Sleepy::loseSomeTime(RETRY_PERIOD * 1000);     // If no ack received wait and try again
+   }
+  #else
+     rf12_sleep(-1);              // Wake up RF module
+     while (!rf12_canSend())
+     rf12_recvDone();
+     rf12_sendStart(0, &tinytx, sizeof tinytx); 
+     rf12_sendWait(2);           // Wait for RF to finish sending while in standby mode
+     rf12_sleep(0);              // Put RF module to sleep
+     return;
+  #endif
+ }
+#endif
 
 //--------------------------------------------------------------------------------------------------
 // Read current supply voltage
@@ -124,22 +130,24 @@ DallasTemperature sensors(&oneWire); // Pass our oneWire reference to Dallas Tem
 //########################################################################################################################
 
 void setup() {
-  #ifdef DEBUG
+  #if TEST == true
      mySerial.begin(9600);
      //mySerial.println(F("Start setup()"));
   #endif
 
-  #ifdef DEBUG
-     //mySerial.println("Temperature sensor (Dallas DS18B20)");
-     //mySerial.print("NodeID ");mySerial.println(myNodeID);
-     //mySerial.print("F ");mySerial.println(freq);
-     //mySerial.print("Nwk ");mySerial.println(network);
-     //mySerial.print("Power ");mySerial.println(ONE_WIRE_POWER);
-     //mySerial.print("OUTPUT ");mySerial.println(OUTPUT);
+  #if TEST == true
+     mySerial.println("Temperature sensor (Dallas DS18B20)");
+     mySerial.print("NodeID ");mySerial.println(myNodeID);
+     mySerial.print("F ");mySerial.println(freq);
+     mySerial.print("Nwk ");mySerial.println(network);
+     mySerial.print("Power ");mySerial.println(ONE_WIRE_POWER);
+     mySerial.print("OUTPUT ");mySerial.println(OUTPUT);
   #endif
 
-  // rf12_initialize(myNodeID,freq,network); // Initialize RFM12 with settings defined above 
-  // rf12_sleep(0);                          // Put the RFM12 to sleep
+#if TEST == false
+  rf12_initialize(myNodeID,freq,network); // Initialize RFM12 with settings defined above 
+  rf12_sleep(0);                          // Put the RFM12 to sleep
+#endif
 
   pinMode(ONE_WIRE_POWER, OUTPUT); // set power pin for DS18B20 to output
   
@@ -147,14 +155,14 @@ void setup() {
   
   ADCSRA &= ~ bit(ADEN); bitSet(PRR, PRADC); // Disable the ADC to save power
 
-  #ifdef DEBUG
-     //mySerial.println(F("End setup()"));
+  #if TEST == true
+     mySerial.println(F("End setup()"));
   #endif
 }
 
 void loop() {
-  #ifdef DEBUG
-    //mySerial.println(F("Start loop()"));
+  #if TEST == true
+    mySerial.println(F("Start loop()"));
   #endif  
 
 
@@ -171,16 +179,20 @@ void loop() {
   
   tinytx.supplyV = readVcc(); // Get supply voltage
 
-  //rfwrite(); // Send data via RF 
+#if TEST == false
+  rfwrite(); // Send data via RF 
+#endif
 
-  #ifdef DEBUG
-    //mySerial.print("Temp : ");mySerial.println(tinytx.temp);
-    //mySerial.print("Vcc: ");mySerial.println(tinytx.supplyV);
+  #if TEST == true
+    mySerial.print("Temp : ");mySerial.println(tinytx.temp);
+    mySerial.print("Vcc: ");mySerial.println(tinytx.supplyV);
   #endif
 
-  // Sleepy::loseSomeTime(60000); //JeeLabs power save function: enter low power mode for 60 seconds (valid range 16-65000 ms)
+#if TEST == false
+  Sleepy::loseSomeTime(60000); //JeeLabs power save function: enter low power mode for 60 seconds (valid range 16-65000 ms)
+#endif
 
-  #ifdef DEBUG
-    //mySerial.println(F("End loop()"));
-  #endif  
+#if TEST == true
+  mySerial.println(F("End loop()"));
+ #endif  
 }
