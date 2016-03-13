@@ -10,8 +10,6 @@
 
 #include <JeeLib.h>        // https://github.com/jcw/jeelib
 
-#define DEBUG false        // comment this line
-
 #define SLEEP_TIME 1000
 
 #include <SoftSerial.h>
@@ -97,12 +95,13 @@ void setup() {
   mySerial.print("Network : "); mySerial.println(network);
 
   rf12_initialize(myNodeID, freq, network); // Initialize RFM12 with settings defined above
-  rf12_sleep(0);                          // Put the RFM12 to sleep
+  rf12_sleep(0);                            // Put the RFM12 to sleep
 
   PRR = bit(PRTIM1); // only keep timer 0 going
 
   ADCSRA &= ~ bit(ADEN); bitSet(PRR, PRADC); // Disable the ADC to save power
 
+  mySerial.print("RFM12B initialized."); mySerial.println(network);
 }
 
 void loop() {
