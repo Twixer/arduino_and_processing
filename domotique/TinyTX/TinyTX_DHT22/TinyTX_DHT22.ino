@@ -10,8 +10,22 @@
 // Requires Arduino IDE with arduino-tiny core: http://code.google.com/p/arduino-tiny/
 //----------------------------------------------------------------------------------------------------------------------
 
-#include <DHT22.h> // https://github.com/nathanchantrell/Arduino-DHT22
-#include <JeeLib.h> // https://github.com/jcw/jeelib
+#include <DHT22.h>         // https://github.com/nathanchantrell/Arduino-DHT22
+#include <JeeLib.h>        // https://github.com/jcw/jeelib
+
+#define DEBUG false        // comment this line
+
+#define SLEEP_TIME 1000
+
+#if DEBUG
+  #include <SoftSerial.h>
+  #include <TinyPinChange.h>
+
+  #define SERIAL_TX_PIN 0 /* Physical Pin 3 for an ATtinyX5 and Physical Pin  9 for an ATtinyX4 */
+  #define SERIAL_RX_PIN 3 /* PHYSICAL PIN 2 FOR AN ATTINYX5 AND PHYSICAL PIN 10 FOR AN ATTINYX4 */
+
+  SoftSerial mySerial(SERIAL_RX_PIN, SERIAL_TX_PIN);
+#endif
 
 ISR(WDT_vect) { Sleepy::watchdogEvent(); } // interrupt handler for JeeLabs Sleepy power saving
 
@@ -34,9 +48,9 @@ DHT22 myDHT22(DHT22_PIN); // Setup the DHT
 //########################################################################################################################
 
  typedef struct {
-     	  int humidity;	// Humidity reading
-  	  int supplyV;	// Supply voltage
-   	  int temp;	// Temperature reading
+        int humidity; // Humidity reading
+      int supplyV;  // Supply voltage
+      int temp; // Temperature reading
  } Payload;
 
  Payload tinytx;
@@ -57,6 +71,7 @@ DHT22 myDHT22(DHT22_PIN); // Setup the DHT
 //--------------------------------------------------------------------------------------------------
 // Send payload data via RF
 //-------------------------------------------------------------------------------------------------
+#if !DEBUG
  static void rfwrite(){
   #ifdef USE_ACK
    for (byte i = 0; i <= RETRY_LIMIT; ++i) {  // tx and wait for ack up to RETRY_LIMIT times
@@ -81,8 +96,7 @@ DHT22 myDHT22(DHT22_PIN); // Setup the DHT
      return;
   #endif
  }
-
-
+#endif
 
 //--------------------------------------------------------------------------------------------------
 // Read current supply voltage
@@ -110,6 +124,16 @@ DHT22 myDHT22(DHT22_PIN); // Setup the DHT
 
 void setup() {
 
+  #if DEBUG
+     mySerial.begin(9600);
+     mySerial.println(F("Temperature and Humidity sensor (AM2302)"));
+     mySerial.print("NodeID ");mySerial.println(myNodeID);
+     mySerial.print("F ");mySerial.println(freq);
+     mySerial.print("Nwk ");mySerial.println(network);
+     mySerial.print("Power ");mySerial.println(DHT22_POWER);
+     mySerial.print("DHT22_PIN ");mySerial.println(DHT22_PIN);
+  #endif
+
   rf12_initialize(myNodeID,freq,network); // Initialize RFM12 with settings defined above 
   rf12_sleep(0);                          // Put the RFM12 to sleep
 
@@ -123,6 +147,10 @@ void setup() {
 
 void loop() {
   
+  #if DEBUG
+    mySerial.println(F("Begin loop ...")); 
+  #endif
+
   digitalWrite(DHT22_POWER, HIGH); // turn DHT sensor on
 
   DHT22_ERROR_t errorCode;
@@ -139,13 +167,24 @@ void loop() {
 
     tinytx.supplyV = readVcc(); // Get supply voltage
 
+#if !DEBUG
     rfwrite(); // Send data via RF 
+#endif
 
   }
 
+  #if DEBUG
+    mySerial.print(F("temperature = ")); mySerial.println(tinytx.temp);
+    mySerial.print(F("Humidity = ")); mySerial.println(tinytx.humidity);
+    mySerial.print("Power "); mySerial.println(tinytx.supplyV);
+  #endif
+
+#if !DEBUG
   digitalWrite(DHT22_POWER, LOW); // turn DS18B20 off
   
-  Sleepy::loseSomeTime(60000); //JeeLabs power save function: enter low power mode for 60 seconds (valid range 16-65000 ms)
-    
+  Sleepy::loseSomeTime(SLEEP_TIME); //JeeLabs power save function: enter low power mode for 60 seconds (valid range 16-65000 ms)
+#else
+   mySerial.print(F("End of loop.")); 
+#endif
 }
 

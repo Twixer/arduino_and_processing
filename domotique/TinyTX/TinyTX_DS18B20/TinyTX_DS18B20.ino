@@ -12,9 +12,9 @@
 // and small change to OneWire library, see: http://arduino.cc/forum/index.php/topic,91491.msg687523.html#msg687523
 //----------------------------------------------------------------------------------------------------------------------
 
-#include <OneWire.h> // http://www.pjrc.com/teensy/arduino_libraries/OneWire.zip
-#include <DallasTemperature.h> // http://download.milesburton.com/Arduino/MaximTemperature/DallasTemperature_LATEST.zip
-#include <JeeLib.h> // https://github.com/jcw/jeelib
+#include <OneWire.h>            // http://www.pjrc.com/teensy/arduino_libraries/OneWire.zip
+#include <DallasTemperature.h>  // http://download.milesburton.com/Arduino/MaximTemperature/DallasTemperature_LATEST.zip
+#include <JeeLib.h>             // https://github.com/jcw/jeelib
 
 ISR(WDT_vect) { Sleepy::watchdogEvent(); } // interrupt handler for JeeLabs Sleepy power saving
 

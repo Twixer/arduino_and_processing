@@ -7,6 +7,7 @@
 //----------------------------------------------------------------------------------------------------------------------
 
 #include <JeeLib.h> // https://github.com/jcw/jeelib
+
 //#include <SoftwareSerial.h>
 #include <SoftSerial.h>
 #include <TinyPinChange.h>
@@ -16,29 +17,30 @@
 #define freq RF12_433MHZ     //frequency
 #define group 210            //network group
 
-#define SERIAL_RX_PIN 10 /* Physical Pin 2 for an ATtinyX5 and Physical Pin 10 for an ATtinyX4 */
-#define SERIAL_TX_PIN 9 /* Physical Pin 3 for an ATtinyX5 and Physical Pin  9 for an ATtinyX4 */
+#define SERIAL_TX_PIN 0 /* Physical Pin 3 for an ATtinyX5 and Physical Pin  9 for an ATtinyX4 */
+#define SERIAL_RX_PIN 3 /* PHYSICAL PIN 2 FOR AN ATTINYX5 AND PHYSICAL PIN 10 FOR AN ATTINYX4 */
 
 //SoftwareSerial Serial(SERIAL_RX_PIN, SERIAL_TX_PIN);
-//SoftSerial mySerial(SERIAL_RX_PIN, SERIAL_TX_PIN);
+SoftSerial mySerial(SERIAL_RX_PIN, SERIAL_TX_PIN);
 
 typedef struct {
   int rxD;              // sensor value
+  int rxC;              // sensor value
   int supplyV;          // tx voltage
-} Payload;
-Payload rx;
+  } Payload;
+  Payload rx;
 
 int nodeID;    //node ID of tx, extracted from RF datapacket. Not transmitted as part of structure
 
 void setup () {
   //Serial.begin(96000);
-  Serial.begin(9600);
+  mySerial.begin(9600);
   rf12_initialize(MYNODE, freq, group); // Initialise the RFM12B
 
-  Serial.println("TinyTX Simple Receive Example");
-  Serial.println("-----------------------------");
-  Serial.println("Waiting for data");
-  Serial.println(" ");
+  mySerial.println("TinyTX Simple Receive Example");
+  mySerial.println("-----------------------------");
+  mySerial.println("Waiting for data");
+  mySerial.println(" ");
 }
 
 void loop() {
@@ -51,17 +53,17 @@ void loop() {
 
     if (RF12_WANTS_ACK) {                  // Send ACK if requested
       rf12_sendStart(RF12_ACK_REPLY, 0, 0);
-      Serial.println("-> ack sent");
+      mySerial.println("-> ack sent");
     }
 
-    Serial.println("Received a packet:");
-    Serial.print("From Node: ");
-    Serial.println(nodeID);
-    Serial.print("Value: ");
-    Serial.println(value);
-    Serial.print("TX Millivolts: ");
-    Serial.println(millivolts);
-    Serial.println("--------------------");
+    mySerial.println("Received a packet:");
+    mySerial.print("From Node: ");
+    mySerial.println(nodeID);
+    mySerial.print("Value: ");
+    mySerial.println(value);
+    mySerial.print("TX Millivolts: ");
+    mySerial.println(millivolts);
+    mySerial.println("--------------------");
   }
 
 }
