@@ -7,7 +7,7 @@
 //----------------------------------------------------------------------------------------------------------------------
 
 #include <JeeLib.h> // https://github.com/jcw/jeelib
-//#include <SoftwareSerial.h>
+
 #include <SoftSerial.h>
 #include <TinyPinChange.h>
 
@@ -19,29 +19,32 @@
 #define freq RF12_433MHZ     //frequency
 #define group 210            //network group
 
-#define SERIAL_RX_PIN 3 /* Physical Pin 2 for an ATtinyX5 and Physical Pin 10 for an ATtinyX4 */
-#define SERIAL_TX_PIN 0 /* Physical Pin 3 for an ATtinyX5 and Physical Pin  9 for an ATtinyX4 */
 
-//SoftwareSerial Serial(SERIAL_RX_PIN, SERIAL_TX_PIN);
+#define SERIAL_TX_PIN 0 /* Physical Pin 3 for an ATtinyX5 and Physical Pin  9 for an ATtinyX4 */
+#define SERIAL_RX_PIN 3 /* PHYSICAL PIN 2 FOR AN ATTINYX5 AND PHYSICAL PIN 10 FOR AN ATTINYX4 */
+
 SoftSerial mySerial(SERIAL_RX_PIN, SERIAL_TX_PIN);
 
 typedef struct {
   int rxD;              // sensor value
+  int rxC;              // sensor value
   int supplyV;          // tx voltage
-} Payload;
-Payload rx;
+  } Payload;
+  Payload rx;
 
 int nodeID;    //node ID of tx, extracted from RF datapacket. Not transmitted as part of structure
 
 void setup () {
-  //Serial.begin(96000);
+
   mySerial.begin(9600);
   rf12_initialize(MYNODE, freq, group); // Initialise the RFM12B
 
   mySerial.println("TinyTX Simple Receive Example");
+
 //  mySerial.print("Node Group : ");mySerial.println(group);
 //  mySerial.print("Node ID : ");mySerial.println(MYNODE);
 //  mySerial.print("Node Frequence : ");mySerial.println(freq);
+
   mySerial.println("-----------------------------");
   mySerial.println("Waiting for data");
   mySerial.println(" ");
@@ -60,6 +63,7 @@ void loop() {
       rf12_sendStart(RF12_ACK_REPLY, 0, 0);
       mySerial.println("-> ack sent");
     }
+
 
     mySerial.println("");
     mySerial.println("Received a packet:");

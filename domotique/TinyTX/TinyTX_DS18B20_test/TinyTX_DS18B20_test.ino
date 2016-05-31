@@ -12,14 +12,15 @@
 // and small change to OneWire library, see: http://arduino.cc/forum/index.php/topic,91491.msg687523.html#msg687523
 //----------------------------------------------------------------------------------------------------------------------
 
-#define TEST true             // TEST : print the output to the serial and disable RF transmission
+#define DEBUG true             // DEBUG : print the output to the serial and disable RF transmission
 
 #include <JeeLib.h> // https://github.com/jcw/jeelib
 #include <OneWire.h> // http://www.pjrc.com/teensy/arduino_libraries/OneWire.zip
-#include <DallasTemperature.h> // http://download.milesburton.com/Arduino/MaximTemperature/DallasTemperature_LATEST.zip
+#include <DallasTemperature.h> // http://download.milesburton.com/Arduino/MaximTemperature/DallasTemperature_LADEBUG.zip
 
 
-#if TEST == false
+
+#if DEBUG == false
   ISR(WDT_vect) { Sleepy::watchdogEvent(); } // interrupt handler for JeeLabs Sleepy power saving
 #endif
 
@@ -35,7 +36,7 @@
 #define ONE_WIRE_BUS 10   // DS18B20 Temperature sensor is connected on D10/ATtiny pin 13
 #define ONE_WIRE_POWER 9  // DS18B20 Power pin is connected on D9/ATtiny pin 12
 
-#if TEST == true
+#if DEBUG == true
   #include <SoftSerial.h>
   //#include <SoftwareSerial.h>
   #include <TinyPinChange.h>
@@ -62,7 +63,7 @@ DallasTemperature sensors(&oneWire); // Pass our oneWire reference to Dallas Tem
 
  Payload tinytx;
 
-#if TEST == false
+#if DEBUG == false
 // Wait a few milliseconds for proper ACK
  #ifdef USE_ACK
   static byte waitForAck() {
@@ -79,7 +80,7 @@ DallasTemperature sensors(&oneWire); // Pass our oneWire reference to Dallas Tem
 //--------------------------------------------------------------------------------------------------
 // Send payload data via RF
 //-------------------------------------------------------------------------------------------------
-#if TEST == false
+#if DEBUG == false
 static void rfwrite(){
   #ifdef USE_ACK
    for (byte i = 0; i <= RETRY_LIMIT; ++i) {  // tx and wait for ack up to RETRY_LIMIT times
@@ -130,12 +131,12 @@ static void rfwrite(){
 //########################################################################################################################
 
 void setup() {
-  #if TEST == true
+  #if DEBUG == true
      mySerial.begin(9600);
      //mySerial.println(F("Start setup()"));
   #endif
 
-  #if TEST == true
+  #if DEBUG == true
      mySerial.println("Temperature sensor (Dallas DS18B20)");
      mySerial.print("NodeID ");mySerial.println(myNodeID);
      mySerial.print("F ");mySerial.println(freq);
@@ -144,7 +145,7 @@ void setup() {
      mySerial.print("OUTPUT ");mySerial.println(OUTPUT);
   #endif
 
-#if TEST == false
+#if DEBUG == false
   rf12_initialize(myNodeID,freq,network); // Initialize RFM12 with settings defined above 
   rf12_sleep(0);                          // Put the RFM12 to sleep
 #endif
@@ -155,13 +156,13 @@ void setup() {
   
   ADCSRA &= ~ bit(ADEN); bitSet(PRR, PRADC); // Disable the ADC to save power
 
-  #if TEST == true
+  #if DEBUG == true
      mySerial.println(F("End setup()"));
   #endif
 }
 
 void loop() {
-  #if TEST == true
+  #if DEBUG == true
     mySerial.println(F("Start loop()"));
   #endif  
 
@@ -179,20 +180,20 @@ void loop() {
   
   tinytx.supplyV = readVcc(); // Get supply voltage
 
-#if TEST == false
+#if DEBUG == false
   rfwrite(); // Send data via RF 
 #endif
 
-  #if TEST == true
+  #if DEBUG == true
     mySerial.print("Temp : ");mySerial.println(tinytx.temp);
     mySerial.print("Vcc: ");mySerial.println(tinytx.supplyV);
   #endif
 
-#if TEST == false
+#if DEBUG == false
   Sleepy::loseSomeTime(60000); //JeeLabs power save function: enter low power mode for 60 seconds (valid range 16-65000 ms)
 #endif
 
-#if TEST == true
+#if DEBUG == true
   mySerial.println(F("End loop()"));
  #endif  
 }

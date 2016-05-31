@@ -10,15 +10,12 @@
 // Requires Arduino IDE with arduino-tiny core: http://code.google.com/p/arduino-tiny/
 //----------------------------------------------------------------------------------------------------------------------
 
-#include <DHT22.h> // https://github.com/nathanchantrell/Arduino-DHT22
-#include <JeeLib.h> // https://github.com/jcw/jeelib
+#include <DHT22.h>         // https://github.com/nathanchantrell/Arduino-DHT22
+#include <JeeLib.h>        // https://github.com/jcw/jeelib
 
-#define TEST = true       // comment this line
-#
-#include <SoftSerial.h>
-#include <TinyPinChange.h>
+#define DEBUG   true       // comment this line
 
-#ifdef TEST
+#if DEBUG
   #include <SoftSerial.h>
   #include <TinyPinChange.h>
 
@@ -72,7 +69,8 @@ DHT22 myDHT22(DHT22_PIN); // Setup the DHT
 //--------------------------------------------------------------------------------------------------
 // Send payload data via RF
 //-------------------------------------------------------------------------------------------------
-#ifndef TEST
+
+#if !DEBUG
  static void rfwrite(){
   #ifdef USE_ACK
    for (byte i = 0; i <= RETRY_LIMIT; ++i) {  // tx and wait for ack up to RETRY_LIMIT times
@@ -125,7 +123,8 @@ DHT22 myDHT22(DHT22_PIN); // Setup the DHT
 
 void setup() {
 
-  #ifdef TEST
+
+  #if DEBUG
      mySerial.begin(9600);
      mySerial.println(F("Temperature and Humidity sensor (AM2302)"));
      mySerial.print("NodeID ");mySerial.println(myNodeID);
@@ -148,7 +147,7 @@ void setup() {
 
 void loop() {
   
-  #ifdef TEST
+  #if DEBUG
     mySerial.println(F("Begin loop ...")); 
   #endif
 
@@ -168,19 +167,22 @@ void loop() {
 
     tinytx.supplyV = readVcc(); // Get supply voltage
 
-#ifndef TEST
+
+#if !DEBUG
     rfwrite(); // Send data via RF 
 #endif
 
   }
 
-  #ifdef TEST
+
+  #if DEBUG
     mySerial.print(F("temperature = ")); mySerial.println(tinytx.temp);
     mySerial.print(F("Humidity = ")); mySerial.println(tinytx.humidity);
     mySerial.print("Power "); mySerial.println(tinytx.supplyV);
   #endif
 
-#ifndef TEST
+
+#if !DEBUG
   digitalWrite(DHT22_POWER, LOW); // turn DS18B20 off
   
   Sleepy::loseSomeTime(60000); //JeeLabs power save function: enter low power mode for 60 seconds (valid range 16-65000 ms)
