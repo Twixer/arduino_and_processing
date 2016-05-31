@@ -1,8 +1,9 @@
 //----------------------------------------------------------------------------------------------------------------------
-// TinyTX - An ATtiny84 and RFM12B Wireless Temperature & Humidity Sensor Node
+// TinyTX - An ATtiny84 and BMP085 Wireless Air Pressure/Temperature Sensor Node
 // By Nathan Chantrell. For hardware design see http://nathan.chantrell.net/tinytx
 //
-// Using the DHT22 temperature and humidity sensor
+// Using the BMP085 sensor connected via I2C
+// I2C can be connected withf SDA to D8 and SCL to D7 or SDA to D10 and SCL to D9
 //
 // Licenced under the Creative Commons Attribution-ShareAlike 3.0 Unported (CC BY-SA 3.0) licence:
 // http://creativecommons.org/licenses/by-sa/3.0/
@@ -10,48 +11,33 @@
 // Requires Arduino IDE with arduino-tiny core: http://code.google.com/p/arduino-tiny/
 //----------------------------------------------------------------------------------------------------------------------
 
-#include <DHT22.h> // https://github.com/nathanchantrell/Arduino-DHT22
 #include <JeeLib.h> // https://github.com/jcw/jeelib
-
-#define TEST = true       // comment this line
-#
-#include <SoftSerial.h>
-#include <TinyPinChange.h>
-
-#ifdef TEST
-  #include <SoftSerial.h>
-  #include <TinyPinChange.h>
-
-  #define SERIAL_TX_PIN 0 /* Physical Pin 3 for an ATtinyX5 and Physical Pin  9 for an ATtinyX4 */
-  #define SERIAL_RX_PIN 3 /* PHYSICAL PIN 2 FOR AN ATTINYX5 AND PHYSICAL PIN 10 FOR AN ATTINYX4 */
-
-  SoftSerial mySerial(SERIAL_RX_PIN, SERIAL_TX_PIN);
-#endif
+#include <PortsBMP085.h> // Part of JeeLib
 
 ISR(WDT_vect) { Sleepy::watchdogEvent(); } // interrupt handler for JeeLabs Sleepy power saving
 
-#define myNodeID 16      // RF12 node ID in the range 1-30
-#define network 210      // RF12 Network group
-#define freq RF12_433MHZ // Frequency of RFM12B module
+#define myNodeID 1        // RF12 node ID in the range 1-30
+#define network 210       // RF12 Network group
+#define freq RF12_433MHZ  // Frequency of RFM12B module
 
-#define USE_ACK           // Enable ACKs, comment out to disable
+//#define USE_ACK           // Enable ACKs, comment out to disable
 #define RETRY_PERIOD 5    // How soon to retry (in seconds) if ACK didn't come in
 #define RETRY_LIMIT 5     // Maximum number of times to retry
 #define ACK_TIME 10       // Number of milliseconds to wait for an ack
 
-#define DHT22_PIN 10     // DHT sensor is connected on D10/ATtiny pin 13
-#define DHT22_POWER 9 // DHT Power pin is connected on D9/ATtiny pin 12
-
-DHT22 myDHT22(DHT22_PIN); // Setup the DHT
+PortI2C i2c (2);         // BMP085 SDA to D8 and SCL to D7
+// PortI2C i2c (1);      // BMP085 SDA to D10 and SCL to D9
+BMP085 psensor (i2c, 3); // ultra high resolution
+#define BMP085_POWER 9   // BMP085 Power pin is connected on D9
 
 //########################################################################################################################
 //Data Structure to be sent
 //########################################################################################################################
 
  typedef struct {
-     	  int humidity;	// Humidity reading
-  	  int supplyV;	// Supply voltage
-   	  int temp;	// Temperature reading
+      int16_t temp; // Temperature reading
+      int supplyV;  // Supply voltage
+        int32_t pres; // Pressure reading
  } Payload;
 
  Payload tinytx;
@@ -72,7 +58,6 @@ DHT22 myDHT22(DHT22_PIN); // Setup the DHT
 //--------------------------------------------------------------------------------------------------
 // Send payload data via RF
 //-------------------------------------------------------------------------------------------------
-#ifndef TEST
  static void rfwrite(){
   #ifdef USE_ACK
    for (byte i = 0; i <= RETRY_LIMIT; ++i) {  // tx and wait for ack up to RETRY_LIMIT times
@@ -97,12 +82,11 @@ DHT22 myDHT22(DHT22_PIN); // Setup the DHT
      return;
   #endif
  }
-#endif
 
 //--------------------------------------------------------------------------------------------------
 // Read current supply voltage
 //--------------------------------------------------------------------------------------------------
- long readVcc() {
+long readVcc() {
    bitClear(PRR, PRADC); ADCSRA |= bit(ADEN); // Enable the ADC
    long result;
    // Read 1.1V reference against Vcc
@@ -120,26 +104,18 @@ DHT22 myDHT22(DHT22_PIN); // Setup the DHT
    ADCSRA &= ~ bit(ADEN); bitSet(PRR, PRADC); // Disable the ADC to save power
    return result;
 } 
-
 //########################################################################################################################
 
 void setup() {
 
-  #ifdef TEST
-     mySerial.begin(9600);
-     mySerial.println(F("Temperature and Humidity sensor (AM2302)"));
-     mySerial.print("NodeID ");mySerial.println(myNodeID);
-     mySerial.print("F ");mySerial.println(freq);
-     mySerial.print("Nwk ");mySerial.println(network);
-     mySerial.print("Power ");mySerial.println(DHT22_POWER);
-     mySerial.print("DHT22_PIN ");mySerial.println(DHT22_PIN);
-  #endif
-
+  pinMode(BMP085_POWER, OUTPUT); // set power pin for BMP085 to output
+  digitalWrite(BMP085_POWER, HIGH); // turn BMP085 sensor on
+  Sleepy::loseSomeTime(50);
+  psensor.getCalibData();
+  
   rf12_initialize(myNodeID,freq,network); // Initialize RFM12 with settings defined above 
   rf12_sleep(0);                          // Put the RFM12 to sleep
-
-  pinMode(DHT22_POWER, OUTPUT); // set power pin for DHT to output
-  
+   
   PRR = bit(PRTIM1); // only keep timer 0 going
   
   ADCSRA &= ~ bit(ADEN); bitSet(PRR, PRADC); // Disable the ADC to save power
@@ -147,45 +123,26 @@ void setup() {
 }
 
 void loop() {
-  
-  #ifdef TEST
-    mySerial.println(F("Begin loop ...")); 
-  #endif
+   
+  // Get raw temperature reading
+  psensor.startMeas(BMP085::TEMP);
+  Sleepy::loseSomeTime(16);
+  int32_t traw = psensor.getResult(BMP085::TEMP);
 
-  digitalWrite(DHT22_POWER, HIGH); // turn DHT sensor on
+  // Get raw pressure reading
+  psensor.startMeas(BMP085::PRES);
+  Sleepy::loseSomeTime(32);
+  int32_t praw = psensor.getResult(BMP085::PRES);
+ 
+  // Calculate actual temperature and pressure
+  int32_t press;
+  psensor.calculate(tinytx.temp, press);
+  tinytx.pres = (press * 0.01);
 
-  DHT22_ERROR_t errorCode;
-  
-  Sleepy::loseSomeTime(2000); // Sensor requires minimum 2s warm-up after power-on.
-  
-  errorCode = myDHT22.readData(); // read data from sensor
+  tinytx.supplyV = readVcc(); // Get supply voltage
 
-  if (errorCode == DHT_ERROR_NONE) { // data is good
+  rfwrite(); // Send data via RF 
 
-    tinytx.temp = (myDHT22.getTemperatureC()*100); // Get temperature reading and convert to integer, reversed at receiving end
-    
-    tinytx.humidity = (myDHT22.getHumidity()*100); // Get humidity reading and convert to integer, reversed at receiving end
-
-    tinytx.supplyV = readVcc(); // Get supply voltage
-
-#ifndef TEST
-    rfwrite(); // Send data via RF 
-#endif
-
-  }
-
-  #ifdef TEST
-    mySerial.print(F("temperature = ")); mySerial.println(tinytx.temp);
-    mySerial.print(F("Humidity = ")); mySerial.println(tinytx.humidity);
-    mySerial.print("Power "); mySerial.println(tinytx.supplyV);
-  #endif
-
-#ifndef TEST
-  digitalWrite(DHT22_POWER, LOW); // turn DS18B20 off
-  
   Sleepy::loseSomeTime(60000); //JeeLabs power save function: enter low power mode for 60 seconds (valid range 16-65000 ms)
-#else
-   mySerial.print(F("End of loop.")); 
-#endif
-}
 
+}
