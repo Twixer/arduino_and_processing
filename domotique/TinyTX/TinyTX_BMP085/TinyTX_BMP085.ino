@@ -1,69 +1,47 @@
-
 //----------------------------------------------------------------------------------------------------------------------
-// TinyTX - An ATtiny84 and RFM12B Wireless Temperature Sensor Node
+// TinyTX - An ATtiny84 and BMP085 Wireless Air Pressure/Temperature Sensor Node
 // By Nathan Chantrell. For hardware design see http://nathan.chantrell.net/tinytx
 //
-// Using the Dallas DS18B20 temperature sensor
+// Using the BMP085 sensor connected via I2C
+// I2C can be connected withf SDA to D8 and SCL to D7 or SDA to D10 and SCL to D9
 //
 // Licenced under the Creative Commons Attribution-ShareAlike 3.0 Unported (CC BY-SA 3.0) licence:
 // http://creativecommons.org/licenses/by-sa/3.0/
 //
 // Requires Arduino IDE with arduino-tiny core: http://code.google.com/p/arduino-tiny/
-// and small change to OneWire library, see: http://arduino.cc/forum/index.php/topic,91491.msg687523.html#msg687523
 //----------------------------------------------------------------------------------------------------------------------
 
-#define DEBUG true             // DEBUG : print the output to the serial and disable RF transmission
-
 #include <JeeLib.h> // https://github.com/jcw/jeelib
-#include <OneWire.h> // http://www.pjrc.com/teensy/arduino_libraries/OneWire.zip
-#include <DallasTemperature.h> // http://download.milesburton.com/Arduino/MaximTemperature/DallasTemperature_LADEBUG.zip
+#include <PortsBMP085.h> // Part of JeeLib
 
+ISR(WDT_vect) { Sleepy::watchdogEvent(); } // interrupt handler for JeeLabs Sleepy power saving
 
-
-#if DEBUG == false
-  ISR(WDT_vect) { Sleepy::watchdogEvent(); } // interrupt handler for JeeLabs Sleepy power saving
-#endif
-
-#define myNodeID 4        // RF12 node ID in the range 1-30
+#define myNodeID 1        // RF12 node ID in the range 1-30
 #define network 210       // RF12 Network group
 #define freq RF12_433MHZ  // Frequency of RFM12B module
 
-#define USE_ACK           // Enable ACKs, comment out to disable
+//#define USE_ACK           // Enable ACKs, comment out to disable
 #define RETRY_PERIOD 5    // How soon to retry (in seconds) if ACK didn't come in
 #define RETRY_LIMIT 5     // Maximum number of times to retry
 #define ACK_TIME 10       // Number of milliseconds to wait for an ack
 
-#define ONE_WIRE_BUS 10   // DS18B20 Temperature sensor is connected on D10/ATtiny pin 13
-#define ONE_WIRE_POWER 9  // DS18B20 Power pin is connected on D9/ATtiny pin 12
-
-#if DEBUG == true
-  #include <SoftSerial.h>
-  //#include <SoftwareSerial.h>
-  #include <TinyPinChange.h>
-
-  #define SERIAL_RX_PIN 10 /* Physical Pin 2 for an ATtinyX5 and Physical Pin 10 for an ATtinyX4 */
-  #define SERIAL_TX_PIN 9 /* Physical Pin 3 for an ATtinyX5 and Physical Pin  9 for an ATtinyX4 */
-
-  SoftSerial mySerial(SERIAL_RX_PIN, SERIAL_TX_PIN);
-  //SoftwareSerial mySerial(SERIAL_RX_PIN, SERIAL_TX_PIN);
-#endif
-
-OneWire oneWire(ONE_WIRE_BUS); // Setup a oneWire instance
-
-DallasTemperature sensors(&oneWire); // Pass our oneWire reference to Dallas Temperature
+PortI2C i2c (2);         // BMP085 SDA to D8 and SCL to D7
+// PortI2C i2c (1);      // BMP085 SDA to D10 and SCL to D9
+BMP085 psensor (i2c, 3); // ultra high resolution
+#define BMP085_POWER 9   // BMP085 Power pin is connected on D9
 
 //########################################################################################################################
 //Data Structure to be sent
 //########################################################################################################################
 
  typedef struct {
-      int temp; // Temperature reading
+      int16_t temp; // Temperature reading
       int supplyV;  // Supply voltage
+        int32_t pres; // Pressure reading
  } Payload;
 
  Payload tinytx;
 
-#if DEBUG == false
 // Wait a few milliseconds for proper ACK
  #ifdef USE_ACK
   static byte waitForAck() {
@@ -76,12 +54,11 @@ DallasTemperature sensors(&oneWire); // Pass our oneWire reference to Dallas Tem
    return 0;
   }
  #endif
-#endif
+
 //--------------------------------------------------------------------------------------------------
 // Send payload data via RF
 //-------------------------------------------------------------------------------------------------
-#if DEBUG == false
-static void rfwrite(){
+ static void rfwrite(){
   #ifdef USE_ACK
    for (byte i = 0; i <= RETRY_LIMIT; ++i) {  // tx and wait for ack up to RETRY_LIMIT times
      rf12_sleep(-1);              // Wake up RF module
@@ -105,12 +82,11 @@ static void rfwrite(){
      return;
   #endif
  }
-#endif
 
 //--------------------------------------------------------------------------------------------------
 // Read current supply voltage
 //--------------------------------------------------------------------------------------------------
- long readVcc() {
+long readVcc() {
    bitClear(PRR, PRADC); ADCSRA |= bit(ADEN); // Enable the ADC
    long result;
    // Read 1.1V reference against Vcc
@@ -131,69 +107,42 @@ static void rfwrite(){
 //########################################################################################################################
 
 void setup() {
-  #if DEBUG == true
-     mySerial.begin(9600);
-     //mySerial.println(F("Start setup()"));
-  #endif
 
-  #if DEBUG == true
-     mySerial.println("Temperature sensor (Dallas DS18B20)");
-     mySerial.print("NodeID ");mySerial.println(myNodeID);
-     mySerial.print("F ");mySerial.println(freq);
-     mySerial.print("Nwk ");mySerial.println(network);
-     mySerial.print("Power ");mySerial.println(ONE_WIRE_POWER);
-     mySerial.print("OUTPUT ");mySerial.println(OUTPUT);
-  #endif
-
-#if DEBUG == false
+  pinMode(BMP085_POWER, OUTPUT); // set power pin for BMP085 to output
+  digitalWrite(BMP085_POWER, HIGH); // turn BMP085 sensor on
+  Sleepy::loseSomeTime(50);
+  psensor.getCalibData();
+  
   rf12_initialize(myNodeID,freq,network); // Initialize RFM12 with settings defined above 
   rf12_sleep(0);                          // Put the RFM12 to sleep
-#endif
-
-  pinMode(ONE_WIRE_POWER, OUTPUT); // set power pin for DS18B20 to output
-  
+   
   PRR = bit(PRTIM1); // only keep timer 0 going
   
   ADCSRA &= ~ bit(ADEN); bitSet(PRR, PRADC); // Disable the ADC to save power
-
-  #if DEBUG == true
-     mySerial.println(F("End setup()"));
-  #endif
+  
 }
 
 void loop() {
-  #if DEBUG == true
-    mySerial.println(F("Start loop()"));
-  #endif  
+   
+  // Get raw temperature reading
+  psensor.startMeas(BMP085::TEMP);
+  Sleepy::loseSomeTime(16);
+  int32_t traw = psensor.getResult(BMP085::TEMP);
 
-
-  //Sleepy::loseSomeTime(5); // Allow 5ms for the sensor to be ready
-  delay(5); // The above doesn't seem to work for everyone (why?)
+  // Get raw pressure reading
+  psensor.startMeas(BMP085::PRES);
+  Sleepy::loseSomeTime(32);
+  int32_t praw = psensor.getResult(BMP085::PRES);
  
-  digitalWrite(ONE_WIRE_POWER, HIGH); // turn DS18B20 sensor on
-  sensors.begin(); //start up temp sensor
-  sensors.requestTemperatures(); // Get the temperature
-  tinytx.temp=(sensors.getTempCByIndex(0)*100); // Read first sensor and convert to integer, reversed at receiving end
-  
+  // Calculate actual temperature and pressure
+  int32_t press;
+  psensor.calculate(tinytx.temp, press);
+  tinytx.pres = (press * 0.01);
 
-  digitalWrite(ONE_WIRE_POWER, LOW); // turn DS18B20 off
-  
   tinytx.supplyV = readVcc(); // Get supply voltage
 
-#if DEBUG == false
   rfwrite(); // Send data via RF 
-#endif
 
-  #if DEBUG == true
-    mySerial.print("Temp : ");mySerial.println(tinytx.temp);
-    mySerial.print("Vcc: ");mySerial.println(tinytx.supplyV);
-  #endif
-
-#if DEBUG == false
   Sleepy::loseSomeTime(60000); //JeeLabs power save function: enter low power mode for 60 seconds (valid range 16-65000 ms)
-#endif
 
-#if DEBUG == true
-  mySerial.println(F("End loop()"));
- #endif  
 }

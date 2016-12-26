@@ -69,6 +69,7 @@ DHT22 myDHT22(DHT22_PIN); // Setup the DHT
 //--------------------------------------------------------------------------------------------------
 // Send payload data via RF
 //-------------------------------------------------------------------------------------------------
+
 #if !DEBUG
  static void rfwrite(){
   #ifdef USE_ACK
@@ -122,6 +123,7 @@ DHT22 myDHT22(DHT22_PIN); // Setup the DHT
 
 void setup() {
 
+
   #if DEBUG
      mySerial.begin(9600);
      mySerial.println(F("Temperature and Humidity sensor (AM2302)"));
@@ -165,17 +167,20 @@ void loop() {
 
     tinytx.supplyV = readVcc(); // Get supply voltage
 
+
 #if !DEBUG
     rfwrite(); // Send data via RF 
 #endif
 
   }
 
+
   #if DEBUG
     mySerial.print(F("temperature = ")); mySerial.println(tinytx.temp);
     mySerial.print(F("Humidity = ")); mySerial.println(tinytx.humidity);
     mySerial.print("Power "); mySerial.println(tinytx.supplyV);
   #endif
+
 
 #if !DEBUG
   digitalWrite(DHT22_POWER, LOW); // turn DS18B20 off
