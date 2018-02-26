@@ -77,6 +77,7 @@ void loop()
       //Now we can read the level the capacitor has charged up to
       val = analogRead(OUT_PIN);
 
+
       //Discharge capacitor for next measurement
       digitalWrite(IN_PIN, HIGH);
       int dischargeTime = (int)(t / 1000L) * 5;

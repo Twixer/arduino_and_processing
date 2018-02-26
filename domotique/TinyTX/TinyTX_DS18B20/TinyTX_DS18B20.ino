@@ -12,12 +12,13 @@
 // and small change to OneWire library, see: http://arduino.cc/forum/index.php/topic,91491.msg687523.html#msg687523
 //----------------------------------------------------------------------------------------------------------------------
 
-#include <OneWire.h> // http://www.pjrc.com/teensy/arduino_libraries/OneWire.zip
-#include <DallasTemperature.h> // http://download.milesburton.com/Arduino/MaximTemperature/DallasTemperature_LATEST.zip
-#include <JeeLib.h> // https://github.com/jcw/jeelib
+#include <OneWire.h>            // http://www.pjrc.com/teensy/arduino_libraries/OneWire.zip
+#include <DallasTemperature.h>  // http://download.milesburton.com/Arduino/MaximTemperature/DallasTemperature_LATEST.zip
+#include <JeeLib.h>             // https://github.com/jcw/jeelib
 
 ISR(WDT_vect) { Sleepy::watchdogEvent(); } // interrupt handler for JeeLabs Sleepy power saving
 
+#define DEBUG        // comment this line
 #define myNodeID 4        // RF12 node ID in the range 1-30
 #define network 210       // RF12 Network group
 #define freq RF12_433MHZ  // Frequency of RFM12B module
@@ -29,6 +30,19 @@ ISR(WDT_vect) { Sleepy::watchdogEvent(); } // interrupt handler for JeeLabs Slee
 
 #define ONE_WIRE_BUS 10   // DS18B20 Temperature sensor is connected on D10/ATtiny pin 13
 #define ONE_WIRE_POWER 9  // DS18B20 Power pin is connected on D9/ATtiny pin 12
+
+#ifdef DEBUG
+  //#include <SoftSerial.h>
+  #include <SoftwareSerial.h>
+  //#include <TinyPinChange.h>
+
+  #define SERIAL_RX_PIN 10 /* Physical Pin 2 for an ATtinyX5 and Physical Pin 10 for an ATtinyX4 */
+  #define SERIAL_TX_PIN 9 /* Physical Pin 3 for an ATtinyX5 and Physical Pin  9 for an ATtinyX4 */
+
+  //SoftSerial mySerial(SERIAL_RX_PIN, SERIAL_TX_PIN);
+  SoftwareSerial mySerial(SERIAL_RX_PIN, SERIAL_TX_PIN);
+
+#endif
 
 OneWire oneWire(ONE_WIRE_BUS); // Setup a oneWire instance
 
@@ -112,6 +126,19 @@ DallasTemperature sensors(&oneWire); // Pass our oneWire reference to Dallas Tem
 //########################################################################################################################
 
 void setup() {
+  #ifdef DEBUG
+     mySerial.begin(9600);
+     //mySerial.println(F("Start setup()"));
+  #endif
+
+  #ifdef DEBUG
+     //mySerial.println("Temperature sensor (Dallas DS18B20)");
+     //mySerial.print("NodeID ");mySerial.println(myNodeID);
+     //mySerial.print("F ");mySerial.println(freq);
+     //mySerial.print("Nwk ");mySerial.println(network);
+     //mySerial.print("Power ");mySerial.println(ONE_WIRE_POWER);
+     //mySerial.print("OUTPUT ");mySerial.println(OUTPUT);
+  #endif
 
   rf12_initialize(myNodeID,freq,network); // Initialize RFM12 with settings defined above 
   rf12_sleep(0);                          // Put the RFM12 to sleep
@@ -122,25 +149,40 @@ void setup() {
   
   ADCSRA &= ~ bit(ADEN); bitSet(PRR, PRADC); // Disable the ADC to save power
 
+  #ifdef DEBUG
+     //mySerial.println(F("End setup()"));
+  #endif
 }
 
 void loop() {
-  
-  digitalWrite(ONE_WIRE_POWER, HIGH); // turn DS18B20 sensor on
+  #ifdef DEBUG
+    //mySerial.println(F("Start loop()"));
+  #endif  
+
 
   //Sleepy::loseSomeTime(5); // Allow 5ms for the sensor to be ready
   delay(5); // The above doesn't seem to work for everyone (why?)
  
+  digitalWrite(ONE_WIRE_POWER, HIGH); // turn DS18B20 sensor on
   sensors.begin(); //start up temp sensor
   sensors.requestTemperatures(); // Get the temperature
   tinytx.temp=(sensors.getTempCByIndex(0)*100); // Read first sensor and convert to integer, reversed at receiving end
   
+
   digitalWrite(ONE_WIRE_POWER, LOW); // turn DS18B20 off
   
   tinytx.supplyV = readVcc(); // Get supply voltage
 
   rfwrite(); // Send data via RF 
 
+  #ifdef DEBUG
+    //mySerial.print("Temp : ");mySerial.println(tinytx.temp);
+    //mySerial.print("Vcc: ");mySerial.println(tinytx.supplyV);
+  #endif
+
   Sleepy::loseSomeTime(60000); //JeeLabs power save function: enter low power mode for 60 seconds (valid range 16-65000 ms)
 
+  #ifdef DEBUG
+    //mySerial.println(F("End loop()"));
+  #endif  
 }
